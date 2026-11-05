@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 176" role="img" aria-labelledby="title desc">
+  <title id="title">Ría de Rutas</title>
+  <desc id="desc">Boceto de logo con una ruta turquesa y las letras IA en un recuadro azul.</desc>
+  <rect x="16" y="16" width="144" height="144" rx="34" fill="#12324a"/>
+  <path d="M45 122h24c15 0 27-12 27-27V77c0-15 12-27 27-27h9" fill="none" stroke="#5ee0cb" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="45" cy="122" r="7" fill="#5ee0cb"/>
+  <circle cx="132" cy="50" r="7" fill="#5ee0cb"/>
+  <text x="45" y="83" fill="#fff" font-family="Arial, sans-serif" font-size="40" font-weight="700">IA</text>
+  <text x="185" y="91" fill="#12324a" font-family="Arial, sans-serif" font-size="57" font-weight="700">Ría de Rutas</text>
+  <text x="188" y="125" fill="#176b64" font-family="Arial, sans-serif" font-size="19" letter-spacing="2">TRANSPORTE HOSPITALARIO</text>
+</svg>

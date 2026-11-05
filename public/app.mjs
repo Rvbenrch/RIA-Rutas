@@ -171,7 +171,8 @@ function prepare(trip) {
     `<div class="checklist">${checks.map(check => `<label class="control-card">${escape(check.text)}
       <select name="${check.id}" required><option value="">Pendiente</option><option>OK</option><option>NO</option>
       ${check.blocking ? "" : "<option>NA</option>"}</select></label>`).join("")}</div>
-      <label>Medida adoptada si hay algún NO<textarea name="measure" maxlength="300"></textarea></label>`, "Guardar revisión")}</details>`;
+      <label>Medida adoptada (obligatoria si hay algún NO)<textarea name="measure" maxlength="300" aria-describedby="inspection-error"></textarea></label>
+      <p id="inspection-error" class="notice warning" role="alert" hidden></p>`, "Guardar revisión")}</details>`;
   const missing = trip.stops.length - trip.loaded.length;
   const hint = [!trip.inspection?.ready ? "Falta una revisión apta." : "",
     missing ? `Cajas por verificar: ${missing}.` : ""].filter(Boolean).join(" ");
@@ -265,17 +266,19 @@ async function download(format) {
   downloadFile(`${trip.id}.html`, `<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Comprobante ${escape(trip.id)}</title><style>${css}</style>${body}</html>`, "text/html;charset=utf-8");
 }
 
-async function handle(operation) {
+async function handle(operation, showError = error => notify(error.message, true)) {
   if (busy) return;
   busy = true;
   notify("");
   try { await operation(); render(); }
-  catch (error) { notify(error.message, true); }
+  catch (error) { showError(error); }
   finally { busy = false; }
 }
 
 app.addEventListener("submit", event => {
   event.preventDefault();
+  const errorBox = event.target.querySelector("#inspection-error");
+  if (errorBox) errorBox.hidden = true;
   handle(async () => {
     const fields = Object.fromEntries(new FormData(event.target));
     const kind = event.target.dataset.form;
@@ -290,7 +293,13 @@ app.addEventListener("submit", event => {
       return;
     }
     const payload = { ...fields, action: kind, trip: active };
-    if (kind === "inspection") payload.answers = Object.fromEntries(checks.map(item => [item.id, fields[item.id]]));
+    if (kind === "inspection") {
+      payload.answers = Object.fromEntries(checks.map(item => [item.id, fields[item.id]]));
+      if (Object.values(payload.answers).includes("NO") && !fields.measure.trim()) {
+        event.target.elements.measure.focus();
+        throw new Error("Escribe la medida adoptada antes de guardar una revisión con algún NO.");
+      }
+    }
     if (kind === "deliver") {
       payload.stop = Number(fields.stop);
       payload.received = fields.received === "on";
@@ -301,7 +310,10 @@ app.addEventListener("submit", event => {
     });
     await action(payload);
     notify("Operación registrada.");
-  });
+  }, errorBox ? error => {
+    errorBox.textContent = error.message;
+    errorBox.hidden = false;
+  } : undefined);
 });
 
 app.addEventListener("click", event => {

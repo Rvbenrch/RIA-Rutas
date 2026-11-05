@@ -107,6 +107,9 @@ export function act(state, actor, payload, now = new Date().toISOString()) {
         require(!stay || payload.date >= stay.returnDate, "La fecha es anterior al último regreso.");
         vehicle.stays.push({ entryDate: payload.date, returnDate: null, reason,
           entryBy: actor.name, entryAt: now });
+        for (const pending of state.trips) {
+          if (pending.vehicle === vehicle.id && pending.status === "assigned") pending.loaded = [];
+        }
         event("Entrada en taller", `${vehicle.plate} · ${payload.date} · ${reason}`);
       } else {
         require(workshop(vehicle), "No hay una estancia abierta.");

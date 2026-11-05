@@ -9,7 +9,7 @@ import { act, view } from "./public/routes.mjs";
 
 const root = fileURLToPath(new URL(".", import.meta.url));
 const publicDir = resolve(root, "public");
-const database = resolve(root, "runtime", "ria-rutas.sqlite");
+const database = resolve(process.env.RIA_DATA_DIR || resolve(root, "runtime"), "ria-rutas.sqlite");
 const port = Number(process.env.PORT || 8782);
 const origin = `http://127.0.0.1:${port}`;
 const lifetime = 8 * 60 * 60 * 1000;

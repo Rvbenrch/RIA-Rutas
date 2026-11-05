@@ -1,6 +1,6 @@
 import { accounts, seed } from "./scenarios.mjs";
 import { checks } from "./checks.mjs";
-import { act, labels, view, workshop } from "./routes.mjs";
+import { act, availableOn, labels, view, workshop } from "./routes.mjs";
 import { barcode } from "./barcode.mjs";
 
 const local = location.hostname === "127.0.0.1";
@@ -21,10 +21,9 @@ let actor;
 let data;
 let active;
 let busy = false;
-let demo = seed();
-if (!local) {
-  try { demo = JSON.parse(localStorage.getItem(key)) ?? demo; }
-  catch { /* A blocked or invalid browser store starts a new demo. */ }
+function readDemo() {
+  try { return JSON.parse(localStorage.getItem(key)) ?? seed(); }
+  catch { return seed(); }
 }
 document.querySelector("#mode").textContent = local
   ? "Aplicación local · SQLite" : "Demo pública · Datos ficticios en este navegador";
@@ -44,18 +43,21 @@ async function api(path, body) {
 }
 
 async function update() {
-  data = local ? await api("state") : view(demo, actor);
+  data = local ? await api("state") : view(readDemo(), actor);
 }
 
 async function action(payload) {
   if (local) {
     data = await api("action", payload);
   } else {
-    const next = structuredClone(demo);
-    act(next, actor, payload);
-    localStorage.setItem(key, JSON.stringify(next));
-    demo = next;
-    data = view(demo, actor);
+    const save = () => {
+      const next = readDemo();
+      act(next, actor, payload);
+      localStorage.setItem(key, JSON.stringify(next));
+      data = view(next, actor);
+    };
+    if (navigator.locks) await navigator.locks.request(key, save);
+    else save();
   }
 }
 
@@ -122,7 +124,7 @@ function workshopHistory(vehicle) {
 function prepare(trip) {
   const vehicle = data.vehicles.find(item => item.id === trip.vehicle);
   const inWorkshop = vehicle && workshop(vehicle);
-  const vans = data.vehicles.filter(item => !workshop(item)).map(item => ({ id: item.id, name: item.plate }));
+  const vans = data.vehicles.filter(item => availableOn(item, trip.day)).map(item => ({ id: item.id, name: item.plate }));
   const select = form("vehicle", `<label>Furgoneta<select name="vehicle" required>
     <option value="">Selecciona una furgoneta</option>${options(vans, trip.vehicle)}</select></label>`, "Asignar vehículo");
   if (!vehicle) return select;
@@ -135,8 +137,14 @@ function prepare(trip) {
       <select name="${check.id}" required><option value="">Selecciona</option><option>OK</option><option>NO</option>
       ${check.blocking ? "" : "<option>NA</option>"}</select></label>`).join("")}</div>
       <label>Medida adoptada si hay algún NO<textarea name="measure" maxlength="300"></textarea></label>`, "Guardar revisión")}</details>`;
-  return `${select}${maintenance}${inWorkshop ? "" : `${inspection}${form("load", codeField, "Verificar carga")}
-    ${form("depart", "", "Confirmar salida", !trip.inspection?.ready || trip.loaded.length !== trip.stops.length)}`}`;
+  const missing = trip.stops.length - trip.loaded.length;
+  const hint = [!trip.inspection?.ready ? "Falta una revisión apta." : "",
+    missing ? `Cajas por verificar: ${missing}.` : ""].filter(Boolean).join(" ");
+  const operations = availableOn(vehicle, trip.day)
+    ? `${trip.inspection?.ready ? "" : inspection}${form("load", codeField, "Verificar carga")}
+      ${hint ? `<p class="notice">${hint}</p>` : ""}${form("depart", "", "Confirmar salida", Boolean(hint))}`
+    : inWorkshop ? "" : '<p class="notice warning">El regreso es posterior a la jornada de este viaje.</p>';
+  return `${select}${maintenance}${operations}`;
 }
 
 function plan() {
@@ -250,9 +258,9 @@ app.addEventListener("click", event => {
   if (dataset.trip) handle(async () => { active = dataset.trip; });
   if ("logout" in dataset) handle(async () => { if (local) await api("logout", {}); actor = null; active = null; });
   if ("refresh" in dataset) handle(update);
-  if (dataset.download) handle(() => download(dataset.download));
+  if (dataset.download) download(dataset.download).catch(error => notify(error.message, true));
   if ("reset" in dataset && confirm("¿Restablecer los cinco viajes de la demo en este navegador?")) {
-    handle(async () => { localStorage.removeItem(key); demo = seed(); await update(); });
+    handle(async () => { localStorage.removeItem(key); await update(); });
   }
 });
 

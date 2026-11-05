@@ -3,6 +3,8 @@ import { inspect } from "./checks.mjs";
 
 export const labels = { assigned: "Asignado", underway: "En ruta", finished: "Finalizado" };
 export const workshop = vehicle => vehicle.stays.at(-1)?.returnDate === null;
+export const availableOn = (vehicle, day) =>
+  Boolean(vehicle && !workshop(vehicle) && (!vehicle.stays.length || vehicle.stays.at(-1).returnDate <= day));
 
 function require(condition, message) {
   if (!condition) throw new Error(message);
@@ -24,6 +26,11 @@ export function inspectionFor(state, trip) {
     item.driver === trip.driver && item.day === trip.day &&
     item.vehicle === trip.vehicle && item.cycle === cycle
   );
+}
+
+function sameInspection(first, second) {
+  return first.measure === second.measure &&
+    first.results.every((item, i) => item.answer === second.results[i].answer);
 }
 
 export function view(state, actor) {
@@ -78,7 +85,7 @@ export function act(state, actor, payload, now = new Date().toISOString()) {
     case "vehicle": {
       assigned();
       const next = state.vehicles.find(item => item.id === payload.vehicle);
-      require(next && !workshop(next) && !inUse(next), "Furgoneta no disponible.");
+      require(availableOn(next, trip.day) && !inUse(next), "Furgoneta no disponible.");
       if (trip.vehicle === next.id) return;
       trip.vehicle = next.id;
       trip.loaded = [];
@@ -87,8 +94,11 @@ export function act(state, actor, payload, now = new Date().toISOString()) {
     }
     case "inspection": {
       assigned();
-      require(vehicle && !workshop(vehicle) && !inUse(vehicle), "Furgoneta no disponible.");
+      require(availableOn(vehicle, trip.day) && !inUse(vehicle), "Furgoneta no disponible.");
       const review = inspect(payload.answers, clean(payload.measure, 300));
+      const previous = inspectionFor(state, trip);
+      if (previous && sameInspection(previous, review)) return;
+      require(!previous?.ready, "La revisión válida de esta furgoneta y jornada ya está guardada.");
       state.inspections.push({ ...review, driver: actor.id, day: trip.day, vehicle: vehicle.id,
         plate: vehicle.plate, cycle: vehicle.stays.length, at: now });
       event("Revisión guardada", review.ready ? "Apta para la demo" : "Salida bloqueada");
@@ -99,6 +109,7 @@ export function act(state, actor, payload, now = new Date().toISOString()) {
       assigned();
       require(vehicle && !inUse(vehicle), "Furgoneta no disponible para registrar taller.");
       require(validDate(payload.date), "Introduce una fecha efectiva válida.");
+      require(payload.date <= trip.day, "La fecha efectiva no puede ser posterior a la jornada del viaje.");
       const stay = vehicle.stays.at(-1);
       if (payload.action === "workshop-in") {
         const reason = clean(payload.reason, 300);
@@ -121,7 +132,7 @@ export function act(state, actor, payload, now = new Date().toISOString()) {
     }
     case "load": {
       assigned();
-      require(vehicle && !workshop(vehicle), "Selecciona una furgoneta disponible.");
+      require(availableOn(vehicle, trip.day) && !inUse(vehicle), "Selecciona una furgoneta disponible.");
       const box = clean(payload.box, 24);
       require(trip.stops.some(stop => stop.box === box), "Esa caja no pertenece a este viaje.");
       require(!trip.loaded.includes(box), "Esa caja ya está verificada.");
@@ -132,7 +143,7 @@ export function act(state, actor, payload, now = new Date().toISOString()) {
     case "depart": {
       if (trip.status === "underway") return;
       assigned();
-      require(vehicle && !workshop(vehicle) && !inUse(vehicle), "Furgoneta no disponible.");
+      require(availableOn(vehicle, trip.day) && !inUse(vehicle), "Furgoneta no disponible.");
       const inspection = inspectionFor(state, trip);
       require(inspection?.ready, "Hace falta una revisión válida de la furgoneta.");
       require(trip.stops.every(stop => trip.loaded.includes(stop.box)), "Faltan cajas por verificar.");

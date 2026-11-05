@@ -28,4 +28,6 @@ Coordinación puede asignar viajes nuevos, consultar su cronología y descargar 
 
 Ejecuta `npm test` para comprobar permisos, carga, entrega, taller y cierre. El workflow de Pages ejecuta esas pruebas y publica exclusivamente `public/`.
 
+SQLite aplica `UNIQUE (user_id, day, vehicle_id)`. La revisión válida de esa combinación se conserva cuando se repite el mismo envío. Se permite corregir una revisión bloqueante o realizar una revisión tras taller, guardando ambas declaraciones en el historial de la misma fila. Las operaciones locales se ejecutan dentro de una transacción `BEGIN IMMEDIATE`.
+
 Los hospitales, matrículas, cajas y usuarios de ejemplo son ficticios. La recepción se simula con una confirmación de la parada.

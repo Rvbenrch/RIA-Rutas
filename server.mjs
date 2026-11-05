@@ -20,11 +20,39 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS fleet (id INTEGER PRIMARY KEY CHECK (id = 1), state TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS credentials (id TEXT PRIMARY KEY, salt TEXT NOT NULL, hash TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, account TEXT NOT NULL, expires INTEGER NOT NULL);
+  CREATE TABLE IF NOT EXISTS inspections (
+    user_id TEXT NOT NULL,
+    day TEXT NOT NULL,
+    vehicle_id TEXT NOT NULL,
+    history TEXT NOT NULL,
+    UNIQUE (user_id, day, vehicle_id)
+  );
 `);
 db.prepare("INSERT OR IGNORE INTO fleet VALUES (1, ?)").run(JSON.stringify(seed()));
 
-function state() {
+function fleet() {
   return JSON.parse(db.prepare("SELECT state FROM fleet WHERE id = 1").get().state);
+}
+
+function state() {
+  const reviews = db.prepare("SELECT history FROM inspections").all()
+    .flatMap(row => JSON.parse(row.history))
+    .sort((a, b) => a.sequence - b.sequence);
+  return { ...fleet(), inspections: reviews };
+}
+
+function persistInspection(inspection, sequence) {
+  db.prepare(`
+    INSERT INTO inspections (user_id, day, vehicle_id, history)
+    VALUES (?, ?, ?, json_array(json(?)))
+    ON CONFLICT (user_id, day, vehicle_id)
+    DO UPDATE SET history = json_insert(inspections.history, '$[#]', json(?))
+  `).run(inspection.driver, inspection.day, inspection.vehicle,
+    JSON.stringify({ ...inspection, sequence }), JSON.stringify({ ...inspection, sequence }));
+}
+
+function persistFleet({ inspections, ...data }) {
+  db.prepare("UPDATE fleet SET state = ? WHERE id = 1").run(JSON.stringify(data));
 }
 
 function transaction(operation) {
@@ -37,6 +65,13 @@ function transaction(operation) {
     throw error;
   }
 }
+
+transaction(() => {
+  const stored = fleet();
+  if (!Array.isArray(stored.inspections)) return;
+  stored.inspections.forEach(persistInspection);
+  persistFleet(stored);
+});
 
 if (!db.prepare("SELECT 1 FROM credentials LIMIT 1").get()) {
   const credentials = accounts.map(account => ({
@@ -129,8 +164,12 @@ async function api(request, response, path) {
     const payload = await readJson(request);
     transaction(() => {
       const data = state();
+      const before = data.inspections.length;
       act(data, current.actor, payload);
-      db.prepare("UPDATE fleet SET state = ? WHERE id = 1").run(JSON.stringify(data));
+      for (let index = before; index < data.inspections.length; index++) {
+        persistInspection(data.inspections[index], index);
+      }
+      persistFleet(data);
     });
     return json(response, 200, view(state(), current.actor));
   }

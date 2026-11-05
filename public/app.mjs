@@ -23,6 +23,11 @@ let data;
 let active;
 let busy = false;
 const displayedWorkshop = new Set();
+const inspectionDrafts = new Map();
+const inspectionKey = trip => JSON.stringify([
+  actor.id, trip.day, trip.id, trip.vehicle,
+  data.vehicles.find(vehicle => vehicle.id === trip.vehicle)?.stays.length,
+]);
 function readDemo() {
   try { return JSON.parse(localStorage.getItem(key)) ?? seed(); }
   catch { return seed(); }
@@ -167,11 +172,12 @@ function prepare(trip) {
   const maintenance = inWorkshop ? `<p class="notice warning">La furgoneta está en taller.</p>${form("workshop-out", date, "Registrar regreso")}`
     : `<details class="task-card"><summary>Registrar entrada en taller <span class="pill">Si procede</span></summary>${form("workshop-in",
         `${date}<label>Motivo<input name="reason" maxlength="300" required></label>`, "Registrar entrada")}</details>`;
-  const inspection = `<details class="task-card"><summary>Completar revisión de 18 controles <span class="pill pending">Pendiente</span></summary>${form("inspection",
+  const draft = inspectionDrafts.get(inspectionKey(trip));
+  const inspection = `<details class="task-card"${draft ? " open" : ""}><summary>Completar revisión de 18 controles <span class="pill pending">Pendiente</span></summary>${form("inspection",
     `<div class="checklist">${checks.map(check => `<label class="control-card">${escape(check.text)}
-      <select name="${check.id}" required><option value="">Pendiente</option><option>OK</option><option>NO</option>
-      ${check.blocking ? "" : "<option>NA</option>"}</select></label>`).join("")}</div>
-      <label>Medida adoptada (obligatoria si hay algún NO)<textarea name="measure" maxlength="300" aria-describedby="inspection-error"></textarea></label>
+      <select name="${check.id}" required><option value="">Pendiente</option>
+      ${options((check.blocking ? ["OK", "NO"] : ["OK", "NO", "NA"]).map(id => ({ id, name: id })), draft?.[check.id])}</select></label>`).join("")}</div>
+      <label>Medida adoptada (obligatoria si hay algún NO)<textarea name="measure" maxlength="300" aria-describedby="inspection-error">${escape(draft?.measure)}</textarea></label>
       <p id="inspection-error" class="notice warning" role="alert" hidden></p>`, "Guardar revisión")}</details>`;
   const missing = trip.stops.length - trip.loaded.length;
   const hint = [!trip.inspection?.ready ? "Falta una revisión apta." : "",
@@ -275,6 +281,18 @@ async function handle(operation, showError = error => notify(error.message, true
   finally { busy = false; }
 }
 
+function rememberInspection(form) {
+  const trip = data.trips.find(item => item.id === active);
+  const key = inspectionKey(trip);
+  inspectionDrafts.set(key, Object.fromEntries(new FormData(form)));
+  return key;
+}
+
+app.addEventListener("input", event => {
+  const form = event.target.form;
+  if (form?.dataset.form === "inspection") rememberInspection(form);
+});
+
 app.addEventListener("submit", event => {
   event.preventDefault();
   const errorBox = event.target.querySelector("#inspection-error");
@@ -296,7 +314,8 @@ app.addEventListener("submit", event => {
       return;
     }
     const payload = { ...fields, action: kind, trip: active };
-    if (kind === "inspection") {
+    const draftKey = kind === "inspection" ? rememberInspection(event.target) : null;
+    if (draftKey) {
       payload.answers = Object.fromEntries(checks.map(item => [item.id, fields[item.id]]));
       if (Object.values(payload.answers).includes("NO") && !fields.measure.trim()) {
         missingMeasure = true;
@@ -312,6 +331,7 @@ app.addEventListener("submit", event => {
       return { hospital, box };
     });
     await action(payload);
+    if (draftKey) inspectionDrafts.delete(draftKey);
     notify("Operación registrada.");
   }, errorBox ? error => {
     errorBox.textContent = error.message;
@@ -337,13 +357,14 @@ app.addEventListener("click", event => {
   if ("logout" in dataset) handle(async () => {
     if (local) await api("logout", {});
     displayedWorkshop.clear();
+    inspectionDrafts.clear();
     actor = null;
     active = null;
   });
   if ("refresh" in dataset) handle(update);
   if (dataset.download) download(dataset.download).catch(error => notify(error.message, true));
   if ("reset" in dataset && confirm("¿Restablecer los cinco viajes de la demo en este navegador?")) {
-    handle(async () => { localStorage.removeItem(key); await update(); });
+    handle(async () => { localStorage.removeItem(key); inspectionDrafts.clear(); await update(); });
   }
 });
 

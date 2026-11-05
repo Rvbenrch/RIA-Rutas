@@ -278,7 +278,10 @@ async function handle(operation, showError = error => notify(error.message, true
 app.addEventListener("submit", event => {
   event.preventDefault();
   const errorBox = event.target.querySelector("#inspection-error");
+  const measure = errorBox && event.target.elements.measure;
+  let missingMeasure = false;
   if (errorBox) errorBox.hidden = true;
+  measure?.removeAttribute?.("aria-invalid");
   handle(async () => {
     const fields = Object.fromEntries(new FormData(event.target));
     const kind = event.target.dataset.form;
@@ -296,7 +299,7 @@ app.addEventListener("submit", event => {
     if (kind === "inspection") {
       payload.answers = Object.fromEntries(checks.map(item => [item.id, fields[item.id]]));
       if (Object.values(payload.answers).includes("NO") && !fields.measure.trim()) {
-        event.target.elements.measure.focus();
+        missingMeasure = true;
         throw new Error("Escribe la medida adoptada antes de guardar una revisión con algún NO.");
       }
     }
@@ -313,6 +316,10 @@ app.addEventListener("submit", event => {
   }, errorBox ? error => {
     errorBox.textContent = error.message;
     errorBox.hidden = false;
+    if (missingMeasure) {
+      measure.setAttribute("aria-invalid", "true");
+      measure.focus();
+    }
   } : undefined);
 });
 

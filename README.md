@@ -4,7 +4,7 @@ Demo de reparto programado de material hospitalario. Coordinación asigna viajes
 
 ## Demo pública
 
-Abre [Ría de Rutas](https://rvbenrch.github.io/RIA-Rutas/) y elige un perfil. Las cuatro cuentas de chófer y Coordinación son perfiles ficticios sin contraseña en la demo. El estado se guarda en el navegador. Usa **Cambiar perfil** para ver en Coordinación lo que registraste como chófer y **Restablecer demo** para recuperar los cinco viajes originales.
+Abre [Ría de Rutas](https://rvbenrch.github.io/RIA-Rutas/) y despliega **Credenciales públicas de demostración**. Usa `chofer-01` a `chofer-04` o `coordinacion`, con la contraseña pública `RutasDemo26`. La demo verifica esos datos en el navegador y conserva allí las operaciones. Cierra sesión e inicia con Coordinación para ver lo que registraste como chófer. **Restablecer demo** recupera los cinco viajes originales.
 
 ## Aplicación local
 
@@ -16,11 +16,11 @@ En el primer arranque se crean `runtime/ria-rutas.sqlite` y `runtime/accesos-loc
 
 | Viaje | Perfil | Qué comprobar |
 | --- | --- | --- |
-| V01 | Chófer 01 | Revisión, carga, salida, recepción simulada y cierre. |
-| V02 | Chófer 02 | La salida requiere verificar las dos cajas. |
-| V03 | Chófer 03 | Una caja de otra parada se rechaza en la entrega. |
-| V04 | Chófer 04 | Envía F04 a taller, selecciona F05 y revisa el vehículo sustituto. |
-| V05 | Chófer 04 | F04 sigue en taller al día siguiente. Registra el regreso y completa una revisión nueva. |
+| V01 | Lucía Ortega Molina | Revisión, carga, salida, recepción simulada y cierre. |
+| V02 | Álvaro Ruiz Medina | La salida requiere verificar las dos cajas. |
+| V03 | Nuria Campos León | Una caja de otra parada se rechaza en la entrega. |
+| V04 | Mateo Vargas Serrano | Envía F04 a taller, selecciona F05 y revisa el vehículo sustituto. |
+| V05 | Mateo Vargas Serrano | F04 sigue en taller al día siguiente. Registra el regreso y completa una revisión nueva. |
 
 Los códigos de las cajas aparecen junto al hospital. Introduce esos códigos para comprobar la carga y la entrega. Las fechas de jornada son fijas para poder reproducir la demo. La aplicación registra la hora de cada operación y muestra hora peninsular española.
 
@@ -30,4 +30,4 @@ Ejecuta `npm test` para comprobar permisos, carga, entrega, taller y cierre. El 
 
 SQLite aplica `UNIQUE (user_id, day, vehicle_id)`. La revisión válida de esa combinación se conserva cuando se repite el mismo envío. Se permite corregir una revisión bloqueante o realizar una revisión tras taller, guardando ambas declaraciones en el historial de la misma fila. Las operaciones locales se ejecutan dentro de una transacción `BEGIN IMMEDIATE`.
 
-Los hospitales, matrículas, cajas y usuarios de ejemplo son ficticios. La recepción se simula con una confirmación de la parada.
+Las rutas y las recepciones son ficticias. Los nombres de los hospitales corresponden a centros de Málaga. Los usuarios, matrículas y cajas son datos de demostración.

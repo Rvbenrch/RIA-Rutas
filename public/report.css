@@ -1,0 +1,20 @@
+:root { font-family: system-ui, sans-serif; color: #17364a; background: #eef4f6; }
+* { box-sizing: border-box; }
+body { max-width: 55rem; margin: 2rem auto; background: white; border: 1px solid #cedce2; border-radius: 1rem; overflow: hidden; }
+.top { padding: 1.25rem 2rem; }
+main { padding: 0 2rem 2rem; }
+.report-title { padding: 1.5rem; background: #12324a; color: white; border-radius: .8rem; }
+.report-title h1 { margin: .35rem 0; }
+.report-title p { margin: 0; color: #c3ede5; }
+.meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: .7rem; margin: 1.5rem 0; }
+.meta div, .stop, .task-card { background: #f5f9fa; border: 1px solid #d5e3e8; border-radius: .6rem; padding: .85rem; }
+.meta dt, small { color: #476a7c; font-size: .85rem; }
+.meta dd { margin: .3rem 0 0; font-weight: 650; }
+.report-stops { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: .75rem; margin-bottom: 1rem; }
+.barcode { display: block; width: 10rem; height: 2rem; background: white; }
+.pill { font-size: .85rem; color: #08685e; margin-left: .5rem; }
+.review-results { padding-left: 1.5rem; }
+.review-results li { padding: .25rem; }
+.timeline li { padding: .4rem; }
+@media (max-width: 600px) { body { margin: 0; border-radius: 0; } main, .top { padding-inline: 1rem; } }
+@media print { :root { background: white; } body { margin: 0; border: 0; max-width: none; overflow: visible; } .report-title { color: #12324a; background: #edf5f6; } .report-title p { color: #17364a; } .stop, .meta div, li { break-inside: avoid; } }

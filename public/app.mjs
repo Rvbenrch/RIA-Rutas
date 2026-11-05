@@ -1,7 +1,8 @@
-import { accounts, seed } from "./scenarios.mjs";
+import { accounts, hospitalLabel, seed, vehicleLabel } from "./scenarios.mjs";
 import { checks } from "./checks.mjs";
 import { act, availableOn, labels, view, workshop } from "./routes.mjs";
 import { barcode } from "./barcode.mjs";
+import { routeScene } from "./map.mjs";
 
 const local = location.hostname === "127.0.0.1";
 const key = "ria-rutas-demo-v1";
@@ -21,6 +22,7 @@ let actor;
 let data;
 let active;
 let busy = false;
+const displayedWorkshop = new Set();
 function readDemo() {
   try { return JSON.parse(localStorage.getItem(key)) ?? seed(); }
   catch { return seed(); }
@@ -62,26 +64,29 @@ async function action(payload) {
 }
 
 function signIn() {
-  const select = `<label>Perfil<select name="account">${options(accounts)}</select></label>`;
-  return `<section class="panel"><h2>${local ? "Acceso local" : "Elige un perfil de la demo"}</h2>
-    <form data-form="login">${select}
-    ${local ? '<label>Contraseña<input type="password" name="password" required autocomplete="current-password"></label>' : ""}
-    <button>${local ? "Entrar" : "Abrir perfil"}</button></form></section>`;
+  return `<section class="panel login-panel"><h2>Iniciar sesión</h2>
+    <form data-form="login"><label>Usuario<input name="account" required autocomplete="username"></label>
+    <label>Contraseña<input type="password" name="password" required autocomplete="current-password"></label>
+    <button>Entrar</button></form>
+    ${local ? "" : `<p><small>Acceso simulado en este navegador.</small></p><details><summary>Credenciales públicas de demostración</summary>
+      <p>Contraseña de prueba para todos los perfiles: <code>RutasDemo26</code>.</p>
+      <ul>${accounts.map(account => `<li>${escape(account.name)} · <code>${account.id}</code></li>`).join("")}</ul>
+    </details>`}</section>`;
 }
 
 function review(trip) {
   const inspection = trip.inspection;
-  if (!inspection) return "<p>Revisión pendiente.</p>";
-  return `<details><summary>Revisión · ${inspection.ready ? "Apta para la demo" : "Bloquea la salida"}</summary>
-    <p>${escape(inspection.plate)} · ${time(inspection.at)}</p>
-    <ol>${inspection.results.map(item => `<li>${escape(item.text)} <strong>${escape(item.answer)}</strong></li>`).join("")}</ol>
+  if (!inspection) return "";
+  return `<details class="task-card"><summary>Revisión registrada <span class="pill">${inspection.ready ? "Apta para la demo" : "Bloquea la salida"}</span></summary>
+    <p>${escape(vehicleLabel({ id: inspection.vehicle, plate: inspection.plate }))} · ${time(inspection.at)}</p>
+    <ol class="review-results">${inspection.results.map(item => `<li>${escape(item.text)} <strong>${escape(item.answer)}</strong></li>`).join("")}</ol>
     <p>Medida adoptada: ${escape(inspection.measure || "Sin medidas")}</p></details>`;
 }
 
 function metadata(trip) {
   const vehicle = data.vehicles.find(item => item.id === trip.vehicle);
   const facts = [
-    ["Chófer", name(trip.driver)], ["Furgoneta", vehicle?.plate ?? "Sin asignar"],
+    ["Chófer", name(trip.driver)], ["Furgoneta", vehicleLabel(vehicle)],
     ["Jornada", trip.day], ["Salida", time(trip.departedAt)], ["Cierre", time(trip.finishedAt)],
   ];
   return `<dl class="meta">${facts.map(([label, value]) => `<div><dt>${label}</dt><dd>${escape(value)}</dd></div>`).join("")}</dl>`;
@@ -95,8 +100,8 @@ const codeField = '<label>Código de caja<input name="box" inputmode="numeric" p
 
 function stops(trip, interactive) {
   const next = trip.stops.findIndex(stop => !stop.delivered);
-  return trip.stops.map((stop, i) => `<section class="stop">
-    <strong>${i + 1}. ${escape(stop.hospital)}</strong>
+  return trip.stops.map((stop, i) => `<section class="stop" id="stop-${i}" tabindex="-1">
+    <strong>${i + 1}. ${escape(hospitalLabel(stop.hospital))}</strong>
     <p>Caja ${escape(stop.box)} · ${trip.loaded.includes(stop.box) ? "Carga verificada" : "Por cargar"}</p>
     ${barcode(stop.box)}
     ${stop.delivered ? `<p>Recepción simulada · ${time(stop.delivered.at)}</p>` : ""}
@@ -121,20 +126,50 @@ function workshopHistory(vehicle) {
     ${stay.returnAt ? ` · ${time(stay.returnAt)}` : ""}</li>`).join("")}</ol>`;
 }
 
+function workshopPanel(trips) {
+  const vehicles = data.vehicles.filter(vehicle => vehicle.stays.length &&
+    (actor.role === "coordinator" || trips.some(trip => trip.vehicle === vehicle.id)));
+  if (!vehicles.length) return { alert: "", history: "" };
+  const key = `ria-workshop-seen-${local ? "local" : "demo"}-${actor.id}`;
+  let seen;
+  try { seen = new Set(JSON.parse(localStorage.getItem(key) ?? "[]")); }
+  catch { seen = new Set(); }
+  const fresh = vehicles.filter(vehicle => {
+    if (!workshop(vehicle)) return false;
+    const stay = vehicle.stays.at(-1);
+    const id = `${vehicle.id}:${stay.entryAt ?? stay.entryDate}`;
+    if (displayedWorkshop.has(id)) return true;
+    if (seen.has(id)) return false;
+    seen.add(id);
+    displayedWorkshop.add(id);
+    return true;
+  });
+  try { localStorage.setItem(key, JSON.stringify([...seen])); }
+  catch { /* The history is still available when browser storage is disabled. */ }
+  return {
+    alert: fresh.length ? `<div class="notice warning" role="alert"><strong>Nueva entrada en taller</strong>
+      <p>${fresh.map(vehicle => escape(vehicleLabel(vehicle))).join(" · ")}</p>
+      <button type="button" class="secondary" data-dismiss-workshop>Entendido</button></div>` : "",
+    history: `<section class="panel"><h2>Historial de taller</h2>${vehicles.map(vehicle =>
+      `<details><summary>${escape(vehicleLabel(vehicle))} · ${workshop(vehicle) ? "En taller" : "Disponible"}</summary>
+      ${workshopHistory(vehicle)}</details>`).join("")}</section>`,
+  };
+}
+
 function prepare(trip) {
   const vehicle = data.vehicles.find(item => item.id === trip.vehicle);
   const inWorkshop = vehicle && workshop(vehicle);
-  const vans = data.vehicles.filter(item => availableOn(item, trip.day)).map(item => ({ id: item.id, name: item.plate }));
+  const vans = data.vehicles.filter(item => availableOn(item, trip.day)).map(item => ({ id: item.id, name: vehicleLabel(item) }));
   const select = form("vehicle", `<label>Furgoneta<select name="vehicle" required>
     <option value="">Selecciona una furgoneta</option>${options(vans, trip.vehicle)}</select></label>`, "Asignar vehículo");
   if (!vehicle) return select;
   const date = `<label>Fecha efectiva<input type="date" name="date" value="${escape(trip.day)}" required></label>`;
   const maintenance = inWorkshop ? `<p class="notice warning">La furgoneta está en taller.</p>${form("workshop-out", date, "Registrar regreso")}`
-    : `<details><summary>Registrar entrada en taller</summary>${form("workshop-in",
+    : `<details class="task-card"><summary>Registrar entrada en taller <span class="pill">Si procede</span></summary>${form("workshop-in",
         `${date}<label>Motivo<input name="reason" maxlength="300" required></label>`, "Registrar entrada")}</details>`;
-  const inspection = `<details><summary>Completar revisión de 18 controles</summary>${form("inspection",
-    `<div class="checklist">${checks.map(check => `<label>${escape(check.text)}
-      <select name="${check.id}" required><option value="">Selecciona</option><option>OK</option><option>NO</option>
+  const inspection = `<details class="task-card"><summary>Completar revisión de 18 controles <span class="pill pending">Pendiente</span></summary>${form("inspection",
+    `<div class="checklist">${checks.map(check => `<label class="control-card">${escape(check.text)}
+      <select name="${check.id}" required><option value="">Pendiente</option><option>OK</option><option>NO</option>
       ${check.blocking ? "" : "<option>NA</option>"}</select></label>`).join("")}</div>
       <label>Medida adoptada si hay algún NO<textarea name="measure" maxlength="300"></textarea></label>`, "Guardar revisión")}</details>`;
   const missing = trip.stops.length - trip.loaded.length;
@@ -153,13 +188,14 @@ function plan() {
       <label>Chófer<select name="driver">${options(accounts.filter(item => item.role === "driver"))}</select></label>
       <label>Jornada<input type="date" name="day" required></label>
       <label>Paradas en orden, una por línea: hospital | código de caja
-      <textarea name="stops" rows="3" required placeholder="Hospital Demo Ría | 9001"></textarea></label>`, "Asignar viaje")}
+      <textarea name="stops" rows="3" required placeholder="Hospital Civil | 9001"></textarea></label>`, "Asignar viaje")}
     </details>`;
 }
 
 function render() {
   if (!actor) { app.innerHTML = signIn(); return; }
   const coordinator = actor.role === "coordinator";
+  const maintenance = workshopPanel(data.trips);
   const trip = data.trips.find(item => item.id === active) ?? data.trips[0];
   active = trip?.id;
   const tripList = data.trips.map(item => `<button class="secondary trip-link" data-trip="${escape(item.id)}"
@@ -167,7 +203,9 @@ function render() {
   const summary = trip ? `<article class="panel">
     <span class="pill">${escape(labels[trip.status])}</span><h2>${escape(trip.id)} · ${escape(trip.title)}</h2>
     ${metadata(trip)}
+    ${routeScene(trip.stops.map(stop => ({ ...stop, hospital: hospitalLabel(stop.hospital) })), escape)}
     ${review(trip)}
+    ${coordinator && !trip.inspection ? '<p class="task-card">Revisión del vehículo <span class="pill pending">Pendiente</span></p>' : ""}
     ${!coordinator && trip.status === "assigned" ? prepare(trip) : ""}
     <h3>Paradas y cajas</h3>${stops(trip, !coordinator)}
     ${!coordinator && trip.status === "underway" ? form("finish", "", "Finalizar viaje", !trip.stops.every(stop => stop.delivered)) : ""}
@@ -177,13 +215,12 @@ function render() {
   app.innerHTML = `<div class="toolbar"><strong>${escape(actor.name)}</strong><div class="actions">
     ${local ? "" : '<button class="secondary" data-reset>Restablecer demo</button>'}
     <button class="secondary" data-refresh>Actualizar</button>
-    <button class="secondary" data-logout>${local ? "Cerrar sesión" : "Cambiar perfil"}</button>
+    <button class="secondary" data-logout>Cerrar sesión</button>
     </div></div>
+    ${maintenance.alert}
     ${coordinator ? plan() : ""}
     <div class="layout"><nav class="trip-list" aria-label="Viajes">${tripList}</nav>${summary}</div>
-    ${coordinator ? `<section class="panel"><h2>Historial de taller</h2>${data.vehicles.map(vehicle =>
-      `<details><summary>${escape(vehicle.plate)} · ${workshop(vehicle) ? "En taller" : "Disponible"}</summary>
-      ${workshopHistory(vehicle)}</details>`).join("")}</section>` : ""}`;
+    ${maintenance.history}`;
 }
 
 function downloadFile(name, content, type) {
@@ -203,16 +240,27 @@ async function download(format) {
       return `"${(/^[\s]*[=+@-]/.test(text) ? "'" + text : text).replaceAll('"', '""')}"`;
     };
     const rows = [["Viaje", "Jornada", "Chófer", "Vehículo", "Salida", "Cierre", "Hospital", "Caja", "Recepción", "Hora de entrega"],
-      ...trip.stops.map(stop => [trip.id, trip.day, name(trip.driver), trip.departureInspection.plate, time(trip.departedAt),
-        time(trip.finishedAt), stop.hospital, stop.box, stop.delivered?.receipt, time(stop.delivered?.at)])];
+      ...trip.stops.map(stop => [trip.id, trip.day, name(trip.driver), vehicleLabel(data.vehicles.find(vehicle => vehicle.id === trip.vehicle)), time(trip.departedAt),
+        time(trip.finishedAt), hospitalLabel(stop.hospital), stop.box, stop.delivered?.receipt, time(stop.delivered?.at)])];
     downloadFile(`${trip.id}.csv`, "\uFEFF" + rows.map(row => row.map(quote).join(";")).join("\r\n"), "text/csv;charset=utf-8");
     return;
   }
-  const logo = await fetch("./logo.svg").then(response => response.text());
-  const css = await fetch("./style.css").then(response => response.text());
+  const logo = await fetch("./logo.svg").then(response => {
+    if (!response.ok) throw new Error("No se pudo cargar el logo del comprobante.");
+    return response.text();
+  });
+  const css = await fetch("./report.css").then(response => {
+    if (!response.ok) throw new Error("No se pudo cargar el diseño del comprobante.");
+    return response.text();
+  });
   const body = `<header class="top"><img width="225" alt="Ría de Rutas" src="data:image/svg+xml,${escape(encodeURIComponent(logo))}"></header>
-    <main class="panel"><h1>Comprobante de viaje ${escape(trip.id)}</h1>${metadata(trip)}
-    <p>Cajas verificadas: ${trip.loaded.length}. Recepción simulada.</p>${stops(trip, false)}${review(trip)}
+    <main><section class="report-title"><p>DOCUMENTO DE DEMOSTRACIÓN · ${escape(labels[trip.status])}</p>
+    <h1>Comprobante de transporte</h1><p>${escape(trip.id)} · ${escape(trip.title)}</p></section>
+    ${metadata(trip)}
+    <h2>Paradas y verificación de carga</h2>
+    <p>${trip.loaded.length} de ${trip.stops.length} cajas verificadas · Recepción simulada</p>
+    <div class="report-stops">${stops(trip, false)}</div>
+    ${review(trip).replace("<details ", "<details open ")}
     <h2>Cronología</h2>${history(trip)}</main>`;
   downloadFile(`${trip.id}.html`, `<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Comprobante ${escape(trip.id)}</title><style>${css}</style>${body}</html>`, "text/html;charset=utf-8");
 }
@@ -232,7 +280,12 @@ app.addEventListener("submit", event => {
     const fields = Object.fromEntries(new FormData(event.target));
     const kind = event.target.dataset.form;
     if (kind === "login") {
-      actor = local ? (await api("login", fields)).actor : accounts.find(item => item.id === fields.account);
+      if (local) actor = (await api("login", fields)).actor;
+      else {
+        const account = accounts.find(item => item.id === fields.account.trim().toLowerCase());
+        if (!account || fields.password !== "RutasDemo26") throw new Error("Usuario o contraseña incorrectos.");
+        actor = account;
+      }
       await update();
       return;
     }
@@ -255,8 +308,19 @@ app.addEventListener("click", event => {
   const button = event.target.closest("button");
   if (!button) return;
   const { dataset } = button;
+  if (dataset.stop !== undefined) {
+    const stop = document.getElementById(`stop-${dataset.stop}`);
+    stop?.focus();
+    stop?.scrollIntoView({ block: "center" });
+  }
   if (dataset.trip) handle(async () => { active = dataset.trip; });
-  if ("logout" in dataset) handle(async () => { if (local) await api("logout", {}); actor = null; active = null; });
+  if ("dismissWorkshop" in dataset) handle(async () => { displayedWorkshop.clear(); });
+  if ("logout" in dataset) handle(async () => {
+    if (local) await api("logout", {});
+    displayedWorkshop.clear();
+    actor = null;
+    active = null;
+  });
   if ("refresh" in dataset) handle(update);
   if (dataset.download) download(dataset.download).catch(error => notify(error.message, true));
   if ("reset" in dataset && confirm("¿Restablecer los cinco viajes de la demo en este navegador?")) {

@@ -174,7 +174,8 @@ function prepare(trip) {
         `${date}<label>Motivo<input name="reason" maxlength="300" required></label>`, "Registrar entrada")}</details>`;
   const draft = inspectionDrafts.get(inspectionKey(trip));
   const inspection = `<details class="task-card"${draft ? " open" : ""}><summary>Completar revisión de 18 controles <span class="pill pending">Pendiente</span></summary>${form("inspection",
-    `<div class="checklist">${checks.map(check => `<label class="control-card">${escape(check.text)}
+    `<button type="button" class="secondary" data-all-ok>Marcar todo OK</button>
+    <div class="checklist">${checks.map(check => `<label class="control-card">${escape(check.text)}
       <select name="${check.id}" required><option value="">Pendiente</option>
       ${options((check.blocking ? ["OK", "NO"] : ["OK", "NO", "NA"]).map(id => ({ id, name: id })), draft?.[check.id])}</select></label>`).join("")}</div>
       <label>Medida adoptada (obligatoria si hay algún NO)<textarea name="measure" maxlength="300" aria-describedby="inspection-error">${escape(draft?.measure)}</textarea></label>
@@ -347,6 +348,17 @@ app.addEventListener("click", event => {
   const button = event.target.closest("button");
   if (!button) return;
   const { dataset } = button;
+  if ("allOk" in dataset) {
+    const form = button.form;
+    const controls = checks.map(check => form.elements.namedItem(check.id));
+    if ((form.elements.measure.value || controls.some(control => ["NO", "NA"].includes(control.value))) &&
+        !confirm("¿Marcar todos los controles como OK y borrar la medida anotada, si la hay?")) return;
+    for (const control of controls) control.value = "OK";
+    form.elements.measure.value = "";
+    form.elements.measure.removeAttribute("aria-invalid");
+    form.querySelector("#inspection-error").hidden = true;
+    rememberInspection(form);
+  }
   if (dataset.stop !== undefined) {
     const stop = document.getElementById(`stop-${dataset.stop}`);
     stop?.focus();

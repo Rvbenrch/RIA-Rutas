@@ -1,4 +1,4 @@
-import { accounts } from "./scenarios.mjs";
+import { accounts, hospitalLabel, vehicleLabel } from "./scenarios.mjs";
 import { inspect } from "./checks.mjs";
 
 export const labels = { assigned: "Asignado", underway: "En ruta", finished: "Finalizado" };
@@ -37,7 +37,7 @@ export function view(state, actor) {
   const trips = actor.role === "coordinator" ? state.trips : state.trips.filter(trip => trip.driver === actor.id);
   const vehicles = state.vehicles.map(vehicle => actor.role === "coordinator" ? vehicle : {
     id: vehicle.id, plate: vehicle.plate,
-    stays: vehicle.stays.map(stay => ({ entryDate: stay.entryDate, returnDate: stay.returnDate })),
+    stays: vehicle.stays.map(stay => ({ entryDate: stay.entryDate, entryAt: stay.entryAt, returnDate: stay.returnDate })),
   });
   return {
     trips: trips.map(trip => ({
@@ -89,7 +89,7 @@ export function act(state, actor, payload, now = new Date().toISOString()) {
       if (trip.vehicle === next.id) return;
       trip.vehicle = next.id;
       trip.loaded = [];
-      event("Vehículo asignado", next.plate);
+      event("Vehículo asignado", vehicleLabel(next));
       return;
     }
     case "inspection": {
@@ -121,12 +121,12 @@ export function act(state, actor, payload, now = new Date().toISOString()) {
         for (const pending of state.trips) {
           if (pending.vehicle === vehicle.id && pending.status === "assigned") pending.loaded = [];
         }
-        event("Entrada en taller", `${vehicle.plate} · ${payload.date} · ${reason}`);
+        event("Entrada en taller", `${vehicleLabel(vehicle)} · ${payload.date} · ${reason}`);
       } else {
         require(workshop(vehicle), "No hay una estancia abierta.");
         require(payload.date >= stay.entryDate, "El regreso no puede ser anterior a la entrada.");
         Object.assign(stay, { returnDate: payload.date, returnBy: actor.name, returnAt: now });
-        event("Regreso del taller", `${vehicle.plate} · ${payload.date}`);
+        event("Regreso del taller", `${vehicleLabel(vehicle)} · ${payload.date}`);
       }
       return;
     }
@@ -150,7 +150,7 @@ export function act(state, actor, payload, now = new Date().toISOString()) {
       trip.departureInspection = inspection;
       trip.departedAt = now;
       trip.status = "underway";
-      event("Salida confirmada", vehicle.plate);
+      event("Salida confirmada", vehicleLabel(vehicle));
       return;
     }
     case "deliver": {
@@ -161,7 +161,7 @@ export function act(state, actor, payload, now = new Date().toISOString()) {
       require(clean(payload.box, 24) === stop.box, "La caja no corresponde a este hospital.");
       require(payload.received === true, "Confirma la recepción simulada.");
       stop.delivered = { at: now, driver: actor.name, receipt: "Recepción simulada" };
-      event("Entrega registrada", `${stop.hospital} · caja ${stop.box}`);
+      event("Entrega registrada", `${hospitalLabel(stop.hospital)} · caja ${stop.box}`);
       return;
     }
     case "finish":

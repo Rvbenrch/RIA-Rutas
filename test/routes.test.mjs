@@ -80,7 +80,7 @@ test("una furgoneta en taller continúa bloqueada en la jornada siguiente", () =
   run(fifth, "load", { box: fifth.stops[0].box });
   run(fifth, "depart");
   assert.equal(fifth.status, "underway");
-  assert.equal(state.vehicles[3].stays[0].returnBy, "Chófer 04");
+  assert.equal(state.vehicles[3].stays[0].returnBy, drivers[3].name);
 });
 
 test("un regreso el mismo día exige revisión nueva y conserva la anterior", () => {

@@ -1,12 +1,34 @@
 export const accounts = [
-  { id: "chofer-01", name: "Chófer 01", role: "driver" },
-  { id: "chofer-02", name: "Chófer 02", role: "driver" },
-  { id: "chofer-03", name: "Chófer 03", role: "driver" },
-  { id: "chofer-04", name: "Chófer 04", role: "driver" },
+  { id: "chofer-01", name: "Lucía Ortega Molina", role: "driver" },
+  { id: "chofer-02", name: "Álvaro Ruiz Medina", role: "driver" },
+  { id: "chofer-03", name: "Nuria Campos León", role: "driver" },
+  { id: "chofer-04", name: "Mateo Vargas Serrano", role: "driver" },
   { id: "coordinacion", name: "Coordinación", role: "coordinator" },
 ];
 
-const destinations = ["Hospital Demo Ría", "Hospital Demo Faro", "Hospital Demo Duna"];
+export const destinations = [
+  "Hospital Universitario Regional de Málaga",
+  "Hospital Universitario Virgen de la Victoria",
+  "Hospital Civil",
+];
+const fleet = {
+  F01: { model: "Mercedes-Benz Sprinter", plate: "4301 DEM" },
+  F02: { model: "Ford Transit", plate: "4302 DEM" },
+  F03: { model: "Volkswagen Crafter", plate: "4303 DEM" },
+  F04: { model: "Renault Master", plate: "4304 DEM" },
+  F05: { model: "Mercedes-Benz Vito", plate: "4305 DEM" },
+};
+
+export function vehicleLabel(vehicle) {
+  if (!vehicle) return "Sin asignar";
+  const entry = fleet[vehicle.id];
+  return entry ? `${entry.model} · ${vehicle.plate?.startsWith("FICTICIA-") ? entry.plate : vehicle.plate}` : vehicle.plate;
+}
+
+export function hospitalLabel(hospital) {
+  const index = ["Hospital Demo Ría", "Hospital Demo Faro", "Hospital Demo Duna"].indexOf(hospital);
+  return index === -1 ? hospital : destinations[index];
+}
 const journeys = [
   [1, 1, "2026-11-05", 1, [0], "Entrega de una caja"],
   [2, 2, "2026-11-05", 2, [0, 1], "Dos paradas y comprobación de carga"],
@@ -17,8 +39,8 @@ const journeys = [
 
 export function seed() {
   return {
-    vehicles: Array.from({ length: 5 }, (_, i) => ({
-      id: `F0${i + 1}`, plate: `FICTICIA-${i + 1}`, stays: [],
+    vehicles: Object.entries(fleet).map(([id, { plate }]) => ({
+      id, plate, stays: [],
     })),
     inspections: [],
     trips: journeys.map(([number, driver, day, van, stops, title]) => ({

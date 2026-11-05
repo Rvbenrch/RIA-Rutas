@@ -1,0 +1,13 @@
+.env
+.env.*
+.dev.vars*
+runtime/
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+*.db
+*.db-*
+*.pem
+*.key
+node_modules/

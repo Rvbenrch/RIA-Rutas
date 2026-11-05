@@ -1,0 +1,11 @@
+{
+  "name": "ria-rutas",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24.14.0" },
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test"
+  }
+}

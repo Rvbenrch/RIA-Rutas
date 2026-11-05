@@ -83,6 +83,21 @@ summary { cursor: pointer; font-weight: 700; }
 .timeline { padding-left: 1.4rem; }
 .timeline li { padding: .4rem .2rem; }
 small { color: #426477; }
+.login-panel { max-width: 32rem; margin-inline: auto; }
+.task-card { border: 1px solid var(--line); border-radius: .75rem; padding: .85rem; background: #f7fafb; }
+.task-card summary .pill { margin-left: .5rem; }
+.pending { background: #fff0dd; color: #693903; }
+.control-card, .review-results li { padding: .65rem; border: 1px solid var(--line); border-radius: .5rem; background: white; }
+.review-results { display: grid; gap: .35rem; }
+.route-scene { margin: 1rem 0; border: 1px solid var(--line); border-radius: .85rem; overflow: hidden; }
+.route-scene figcaption { display: flex; flex-wrap: wrap; gap: .35rem 1rem; justify-content: space-between; padding: .8rem; }
+.scene-scroll { overflow-x: auto; background: #e3f1e9; }
+.scene-scroll svg { display: block; min-width: 100%; }
+.scene-scroll a:focus-visible circle:nth-of-type(2), .scene-scroll a:hover circle:nth-of-type(2) { stroke: white; stroke-width: 3px; }
+.scene-stops { display: flex; flex-wrap: wrap; gap: .5rem; padding: .75rem; }
+.scene-stops button { min-height: 44px; text-align: left; }
+.scene-stops small { display: block; }
+.stop:focus { outline: 2px solid var(--teal); outline-offset: .25rem; }
 @media (max-width: 700px) {
   .layout { grid-template-columns: 1fr; }
   .trip-list { grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr)); }

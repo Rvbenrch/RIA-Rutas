@@ -20,6 +20,8 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS fleet (id INTEGER PRIMARY KEY CHECK (id = 1), state TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS credentials (id TEXT PRIMARY KEY, salt TEXT NOT NULL, hash TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, account TEXT NOT NULL, expires INTEGER NOT NULL);
+  CREATE TABLE IF NOT EXISTS login_counter (id INTEGER PRIMARY KEY CHECK (id = 1), total INTEGER NOT NULL);
+  INSERT OR IGNORE INTO login_counter VALUES (1, 100);
   CREATE TABLE IF NOT EXISTS inspections (
     user_id TEXT NOT NULL,
     day TEXT NOT NULL,
@@ -145,9 +147,12 @@ async function api(request, response, path) {
       return json(response, 401, { error: "Cuenta o contraseña incorrectas." });
     }
     attempts.delete(ip);
-    db.prepare("DELETE FROM sessions WHERE expires <= ? OR token = ?").run(Date.now(), current.token ?? "");
     const token = randomBytes(32).toString("hex");
-    db.prepare("INSERT INTO sessions VALUES (?, ?, ?)").run(token, account, Date.now() + lifetime);
+    transaction(() => {
+      db.prepare("DELETE FROM sessions WHERE expires <= ? OR token = ?").run(Date.now(), current.token ?? "");
+      db.prepare("INSERT INTO sessions VALUES (?, ?, ?)").run(token, account, Date.now() + lifetime);
+      db.exec("UPDATE login_counter SET total = total + 1 WHERE id = 1");
+    });
     return json(response, 200, { actor: accounts.find(item => item.id === account) }, {
       "Set-Cookie": `ria_session=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${lifetime / 1000}`,
     });

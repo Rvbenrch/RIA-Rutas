@@ -73,7 +73,9 @@ test("una furgoneta en taller continúa bloqueada en la jornada siguiente", () =
   assert.throws(() => run(fourth, "depart"), /revisión válida/);
   assert.throws(() => run(fifth, "depart"), /no disponible/);
   assert.throws(() => run(fifth, "workshop-out", { date: "2026-11-04" }), /anterior/);
-  assert.throws(() => run(fifth, "workshop-out", { date: "2026-11-07" }), /posterior/);
+  const lateReturn = structuredClone(state);
+  operate(lateReturn, 4, fifth.id, "workshop-out", { date: "2026-11-07" });
+  assert.throws(() => operate(lateReturn, 4, fifth.id, "depart"), /no disponible/);
   run(fifth, "workshop-out", { date: fifth.day });
   assert.throws(() => run(fifth, "depart"), /revisión válida/);
   run(fifth, "inspection", { answers: good });

@@ -109,9 +109,9 @@ export function act(state, actor, payload, now = new Date().toISOString()) {
       assigned();
       require(vehicle && !inUse(vehicle), "Furgoneta no disponible para registrar taller.");
       require(validDate(payload.date), "Introduce una fecha efectiva válida.");
-      require(payload.date <= trip.day, "La fecha efectiva no puede ser posterior a la jornada del viaje.");
       const stay = vehicle.stays.at(-1);
       if (payload.action === "workshop-in") {
+        require(payload.date <= trip.day, "La fecha efectiva no puede ser posterior a la jornada del viaje.");
         const reason = clean(payload.reason, 300);
         require(!workshop(vehicle), "La furgoneta ya está en taller.");
         require(reason, "Indica el motivo de entrada.");

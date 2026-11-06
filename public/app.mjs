@@ -156,7 +156,7 @@ function workshopPanel(trips) {
       <p>${fresh.map(vehicle => escape(vehicleLabel(vehicle))).join(" · ")}</p>
       <button type="button" class="secondary" data-dismiss-workshop>Entendido</button></div>` : "",
     history: `<section class="panel"><h2>Historial de taller</h2>${vehicles.map(vehicle =>
-      `<details><summary>${escape(vehicleLabel(vehicle))} · ${workshop(vehicle) ? "En taller" : "Disponible"}</summary>
+      `<details><summary>${escape(vehicleLabel(vehicle))} · ${workshop(vehicle) ? "En taller" : "Regreso registrado"}</summary>
       ${workshopHistory(vehicle)}</details>`).join("")}</section>`,
   };
 }
@@ -169,7 +169,10 @@ function prepare(trip) {
     <option value="">Selecciona una furgoneta</option>${options(vans, trip.vehicle)}</select></label>`, "Asignar vehículo");
   if (!vehicle) return select;
   const date = `<label>Fecha efectiva<input type="date" name="date" value="${escape(trip.day)}" required></label>`;
-  const maintenance = inWorkshop ? `<p class="notice warning">La furgoneta está en taller.</p>${form("workshop-out", date, "Registrar regreso")}`
+  const entryDate = vehicle.stays.at(-1)?.entryDate;
+  const returnDate = inWorkshop && entryDate > trip.day ? entryDate : trip.day;
+  const maintenance = inWorkshop ? `<p class="notice warning">La furgoneta está en taller.</p>${form("workshop-out",
+      `<label>Fecha de regreso<input type="date" name="date" min="${escape(entryDate)}" value="${escape(returnDate)}" required></label>`, "Registrar regreso")}`
     : `<details class="task-card"><summary>Registrar entrada en taller <span class="pill">Si procede</span></summary>${form("workshop-in",
         `${date}<label>Motivo<input name="reason" maxlength="300" required></label>`, "Registrar entrada")}</details>`;
   const draft = inspectionDrafts.get(inspectionKey(trip));
